@@ -32,4 +32,5 @@ jobs:
           git config --global user.email "action@github.com"
           git add ukeplaner.json
           git commit -m "Automatisk oppdatering av ukeplaner.json" || exit 0
+          git pull --rebase origin main
           git push
