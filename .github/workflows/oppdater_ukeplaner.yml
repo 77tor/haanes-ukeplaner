@@ -2,8 +2,9 @@ name: Hent Ukeplaner Automatisk
 
 on:
   schedule:
-    - cron: '0 5 * * 1' # Kjører hver mandag kl. 07:00 norsk tid
-  workflow_dispatch: # Gir deg en knapp for å teste det manuelt når som helst
+    # Kjører mandag–fredag kl. 07:00 norsk tid (05:00 UTC i sommertid)
+    - cron: '0 5 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   run-python-script:
