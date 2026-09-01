@@ -2,7 +2,7 @@ name: Hent Ukeplaner Automatisk
 
 on:
   schedule:
-    # Kjører mandag–fredag kl. 07:00 norsk tid (05:00 UTC i sommertid)
+    # Kjører mandag–fredag kl. 07:00 norsk tid
     - cron: '0 5 * * 1-5'
   workflow_dispatch:
 
@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Sjekk ut koden
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Henter hele historikken slik at git pull/push fungerer sømløst
 
       - name: Sett opp Python
         uses: actions/setup-python@v5
@@ -34,5 +32,4 @@ jobs:
           git config --global user.email "action@github.com"
           git add ukeplaner.json
           git commit -m "Automatisk oppdatering av ukeplaner.json" || exit 0
-          git pull origin main --rebase
-          git push
+          git push --force
