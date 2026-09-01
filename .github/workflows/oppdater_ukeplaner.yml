@@ -1,0 +1,34 @@
+name: Hent Ukeplaner Automatisk
+
+on:
+  schedule:
+    - cron: '0 5 * * 1' # Kjører hver mandag kl. 07:00 norsk tid
+  workflow_dispatch: # Gir deg en knapp for å teste det manuelt når som helst
+
+jobs:
+  run-python-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sjekk ut koden
+        uses: actions/checkout@v4
+
+      - name: Sett opp Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Installer pakker
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Kjør Python-skriptet
+        run: |
+          python hent_ukeplaner.py
+
+      - name: Lagre og last opp ukeplaner.json
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add ukeplaner.json
+          git commit -m "Automatisk oppdatering av ukeplaner.json" || exit 0
+          git push
