@@ -1,9 +1,9 @@
 import datetime
 import json
+import re
 import requests
 from bs4 import BeautifulSoup
 
-# Riktige URL-er til trinnene på Hånes skole
 TRINN_URLER = {
     "1": "https://www.minskole.no/haanes/seksjon/22360",
     "2": "https://www.minskole.no/haanes/seksjon/22362",
@@ -18,7 +18,6 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 }
 
-# Finn inneværende og forrige ukenummer
 dagens_dato = datetime.date.today()
 innevaarende_uke = dagens_dato.isocalendar()[1]
 forrige_uke = innevaarende_uke - 1
@@ -35,6 +34,7 @@ for trinn, url in TRINN_URLER.items():
         funnet_url = None
         funnet_uke = innevaarende_uke
         reserve_url = None
+        forste_pdf_url = None  # Ekstra helgardering: Første PDF på siden
 
         for a in soup.find_all('a', href=True):
             href = a['href']
@@ -43,33 +43,38 @@ for trinn, url in TRINN_URLER.items():
             
             is_pdf = '.pdf' in href.lower() or '/fil/' in href.lower()
             
-            har_denne_uke = (
-                f"uke {innevaarende_uke}" in kombinert or 
-                f"uke-{innevaarende_uke}" in kombinert or 
-                f"uke{innevaarende_uke}" in kombinert
-            )
-            
-            har_forrige_uke = (
-                f"uke {forrige_uke}" in kombinert or 
-                f"uke-{forrige_uke}" in kombinert or 
-                f"uke{forrige_uke}" in kombinert
-            )
+            if not is_pdf:
+                continue
 
             full_url = href if href.startswith('http') else f"https://www.minskole.no{href}"
             
-            # Prioriter nyeste ukeplan
-            if is_pdf and har_denne_uke:
+            # Lagre aller første PDF som nødløsning (nyeste fil ligger øverst på MinSkole)
+            if not forste_pdf_url:
+                forste_pdf_url = full_url
+
+            # Fleksibelt søk etter ukenummer ved hjelp av RegEx (fanger uke 37, u37, u-37, uke_37 osv.)
+            pattern_denne = rf"(uke|u)[\s\-_]*0?{innevaarende_uke}\b"
+            pattern_forrige = rf"(uke|u)[\s\-_]*0?{forrige_uke}\b"
+
+            har_denne_uke = bool(re.search(pattern_denne, kombinert))
+            har_forrige_uke = bool(re.search(pattern_forrige, kombinert))
+
+            if har_denne_uke:
                 funnet_url = full_url
                 funnet_uke = innevaarende_uke
                 break
-            # Ta vare på forrige ukes plan som reserve
-            elif is_pdf and har_forrige_uke and not reserve_url:
+            elif har_forrige_uke and not reserve_url:
                 reserve_url = full_url
 
-        # Hvis denne ukens plan ikke er lagt ut ennå, bruk reserven
+        # Fallback 1: Forrige ukes ukeplan
         if not funnet_url and reserve_url:
             funnet_url = reserve_url
             funnet_uke = forrige_uke
+
+        # Fallback 2: Nyeste PDF på siden (hvis skolen glemte å skrive ukenummer)
+        if not funnet_url and forste_pdf_url:
+            funnet_url = forste_pdf_url
+            funnet_uke = innevaarende_uke
 
         resultater[trinn] = {
             "uke": funnet_uke,
@@ -86,7 +91,6 @@ for trinn, url in TRINN_URLER.items():
         resultater[trinn] = {"uke": innevaarende_uke, "pdf_url": None, "status": f"Feil: {e}"}
         print(f"{trinn}. trinn: Feil ved henting ({e})")
 
-# Lagre data til ukeplaner.json
 with open('ukeplaner.json', 'w', encoding='utf-8') as f:
     json.dump(resultater, f, ensure_ascii=False, indent=2)
 
