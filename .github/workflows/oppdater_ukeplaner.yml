@@ -2,9 +2,12 @@ name: Hent Ukeplaner Automatisk
 
 on:
   schedule:
-    # Kjører mandag–fredag kl. 07:00 norsk tid
+    # Kjører mandag–fredag kl. 07:00 norsk tid (05:00 UTC)
     - cron: '0 5 * * 1-5'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run-python-script:
@@ -28,8 +31,9 @@ jobs:
 
       - name: Lagre og last opp ukeplaner.json
         run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ukeplaner.json
-          git commit -m "Automatisk oppdatering av ukeplaner.json" || exit 0
-          git push --force
+          git status
+          git diff --staged --quiet || git commit -m "Automatisk oppdatering av ukeplaner.json"
+          git push
