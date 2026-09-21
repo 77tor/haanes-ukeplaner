@@ -15,55 +15,67 @@ TRINN_URLER = {
 }
 
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
 }
 
 dagens_dato = datetime.date.today()
 innevaarende_uke = dagens_dato.isocalendar()[1]
-forrige_uke = innevaarende_uke - 1
 
+# Håndter at forrige uke ved uke 1 er uke 52 (eller 53)
+if innevaarende_uke == 1:
+    forrige_uke = 52
+else:
+    forrige_uke = innevaarende_uke - 1
+
+print(f"Dato: {dagens_dato}")
 print(f"Søker etter ukeplaner for uke {innevaarende_uke} (reserve: uke {forrige_uke})...\n")
 
 resultater = {}
 
 for trinn, url in TRINN_URLER.items():
     try:
-        response = requests.get(url, headers=headers, timeout=8)
+        response = requests.get(url, headers=headers, timeout=10)
+        response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
         
         funnet_url = None
         funnet_uke = innevaarende_uke
         reserve_url = None
-        forste_pdf_url = None  # Ekstra helgardering: Første PDF på siden
+        forste_pdf_url = None
 
         for a in soup.find_all('a', href=True):
-            href = a['href']
+            href = a['href'].strip()
             tekst = a.get_text(strip=True)
             kombinert = f"{tekst} {href}".lower()
             
-            is_pdf = '.pdf' in href.lower() or '/fil/' in href.lower()
+            # Utvidet sjekk for om det er en fil/PDF på MinSkole
+            is_pdf = any(ext in href.lower() for ext in ['.pdf', '/fil/', 'file=', 'download', '/portals/'])
             
             if not is_pdf:
                 continue
 
-            full_url = href if href.startswith('http') else f"https://www.minskole.no{href}"
+            # Bygg full URL
+            if href.startswith('http'):
+                full_url = href
+            elif href.startswith('/'):
+                full_url = f"https://www.minskole.no{href}"
+            else:
+                full_url = f"https://www.minskole.no/{href}"
             
-            # Lagre aller første PDF som nødløsning (nyeste fil ligger øverst på MinSkole)
+            # Lagre aller første dokumentlenke som nødløsning
             if not forste_pdf_url:
                 forste_pdf_url = full_url
 
-            # Fleksibelt søk etter ukenummer ved hjelp av RegEx (fanger uke 37, u37, u-37, uke_37 osv.)
+            # RegEx for ukenummer (fanger "uke 5", "u5", "uke_05", "u-5" osv.)
             pattern_denne = rf"(uke|u)[\s\-_]*0?{innevaarende_uke}\b"
             pattern_forrige = rf"(uke|u)[\s\-_]*0?{forrige_uke}\b"
 
-            har_denne_uke = bool(re.search(pattern_denne, kombinert))
-            har_forrige_uke = bool(re.search(pattern_forrige, kombinert))
-
-            if har_denne_uke:
+            if re.search(pattern_denne, kombinert):
                 funnet_url = full_url
                 funnet_uke = innevaarende_uke
                 break
-            elif har_forrige_uke and not reserve_url:
+            elif re.search(pattern_forrige, kombinert) and not reserve_url:
                 reserve_url = full_url
 
         # Fallback 1: Forrige ukes ukeplan
@@ -71,7 +83,7 @@ for trinn, url in TRINN_URLER.items():
             funnet_url = reserve_url
             funnet_uke = forrige_uke
 
-        # Fallback 2: Nyeste PDF på siden (hvis skolen glemte å skrive ukenummer)
+        # Fallback 2: Nyeste PDF/fil på siden
         if not funnet_url and forste_pdf_url:
             funnet_url = forste_pdf_url
             funnet_uke = innevaarende_uke
@@ -85,12 +97,13 @@ for trinn, url in TRINN_URLER.items():
         if funnet_url:
             print(f"{trinn}. trinn: Funnet (Uke {funnet_uke}) -> {funnet_url}")
         else:
-            print(f"{trinn}. trinn: Ikke funnet")
+            print(f"{trinn}. trinn: Ikke funnet (Ingen relevante lenker)")
 
     except Exception as e:
         resultater[trinn] = {"uke": innevaarende_uke, "pdf_url": None, "status": f"Feil: {e}"}
         print(f"{trinn}. trinn: Feil ved henting ({e})")
 
+# Lagre filen
 with open('ukeplaner.json', 'w', encoding='utf-8') as f:
     json.dump(resultater, f, ensure_ascii=False, indent=2)
 
