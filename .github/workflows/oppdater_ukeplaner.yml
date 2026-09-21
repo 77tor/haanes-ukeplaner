@@ -2,8 +2,14 @@ name: Hent Ukeplaner Automatisk
 
 on:
   schedule:
-    # Kjører mandag–fredag kl. 07:00 norsk tid (05:00 UTC)
-    - cron: '0 5 * * 1-5'
+    # Tirsdag til fredag: Kjører kun kl. 07:00 norsk tid (05:00 UTC)
+    - cron: '0 5 * * 2-5'
+
+    # Mandag: Kjører kl. 07:00, 08:00 og 09:00 norsk tid (05:00, 06:00 og 07:00 UTC)
+    - cron: '0 5 * * 1'
+    - cron: '0 6 * * 1'
+    - cron: '0 7 * * 1'
+
   workflow_dispatch:
 
 permissions:
